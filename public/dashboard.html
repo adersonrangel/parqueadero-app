@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parqueadero - Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">ParqueaderoApp</div>
+    <div class="nav-links">
+      <a href="index.html">Registro</a>
+      <a href="mensualidades.html">Mensualidades</a>
+      <a href="dashboard.html" class="active">Dashboard</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1 class="page-title">Dashboard Financiero</h1>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-info">
+          <span class="stat-value" id="totalUsuarios">0</span>
+          <span class="stat-label">Usuarios Registrados</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+          <span class="stat-value" id="totalMensualidades">0</span>
+          <span class="stat-label">Total Mensualidades</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-info">
+          <span class="stat-value" id="totalRecaudado">$0</span>
+          <span class="stat-label">Total Recaudado</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-info">
+          <span class="stat-value" id="promedioMensual">$0</span>
+          <span class="stat-label">Promedio por Pago</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="card">
+        <h2>Recaudacion por Mes</h2>
+        <div id="chartRecaudacion" class="chart-container">
+          <canvas id="canvasRecaudacion"></canvas>
+        </div>
+        <div id="listaRecaudacion" class="list-container"></div>
+      </div>
+
+      <div class="card">
+        <h2>Pagos por Usuario</h2>
+        <div id="listaUsuarios" class="list-container">
+          <table id="tablaPagosUsuarios">
+            <thead>
+              <tr>
+                <th>Placa</th>
+                <th>Nombre</th>
+                <th>Pagos</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Resumen del Mes Actual</h2>
+      <div class="mes-actual-info">
+        <div class="mes-info-item">
+          <span class="mes-label">Mes:</span>
+          <span class="mes-value" id="mesActual"></span>
+        </div>
+        <div class="mes-info-item">
+          <span class="mes-label">Pagos este mes:</span>
+          <span class="mes-value" id="pagosMesActual">0</span>
+        </div>
+        <div class="mes-info-item">
+          <span class="mes-label">Recaudado este mes:</span>
+          <span class="mes-value" id="recaudadoMesActual">$0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

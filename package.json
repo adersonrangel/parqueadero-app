@@ -1,0 +1,14 @@
+{
+  "name": "parqueadero-app",
+  "version": "1.0.0",
+  "description": "Aplicacion para registrar mensualidades de un parqueadero",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sql.js": "^1.10.3"
+  }
+}

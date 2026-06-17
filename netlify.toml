@@ -3,6 +3,9 @@
   publish = "public"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "24"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

@@ -1,6 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const { initDatabase, getDatabase, saveDatabase } = require('./db');
+const supabase = require('./supabase');
 
 const app = express();
 const PORT = 3000;
@@ -9,223 +10,271 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Registrar usuario
-app.post('/api/usuarios', (req, res) => {
+app.post('/api/usuarios', async (req, res) => {
   const { placa, nombre, fecha_registro } = req.body;
 
   if (!placa || !nombre) {
     return res.status(400).json({ error: 'Placa y nombre son requeridos' });
   }
 
-  const db = getDatabase();
   const fecha = fecha_registro || new Date().toISOString().split('T')[0];
 
-  try {
-    db.run(
-      'INSERT INTO usuarios (placa, nombre, fecha_registro) VALUES (?, ?, ?)',
-      [placa.toUpperCase(), nombre, fecha]
-    );
-    saveDatabase();
-    res.json({ message: 'Usuario registrado exitosamente', placa: placa.toUpperCase() });
-  } catch (err) {
-    if (err.message.includes('UNIQUE')) {
+  const { error } = await supabase
+    .from('usuarios')
+    .insert({ placa: placa.toUpperCase(), nombre, fecha_registro: fecha });
+
+  if (error) {
+    if (error.code === '23505') {
       return res.status(400).json({ error: 'La placa ya esta registrada' });
     }
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: error.message });
   }
+
+  res.json({ message: 'Usuario registrado exitosamente', placa: placa.toUpperCase() });
 });
 
 // Listar usuarios
-app.get('/api/usuarios', (req, res) => {
-  const db = getDatabase();
-  const results = db.exec('SELECT * FROM usuarios ORDER BY fecha_registro DESC');
+app.get('/api/usuarios', async (req, res) => {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('*')
+    .order('fecha_registro', { ascending: false });
 
-  if (results.length === 0) {
-    return res.json([]);
-  }
-
-  const usuarios = results[0].values.map(row => ({
-    id: row[0],
-    placa: row[1],
-    nombre: row[2],
-    fecha_registro: row[3]
-  }));
-
-  res.json(usuarios);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 // Buscar usuario por placa
-app.get('/api/usuarios/:placa', (req, res) => {
-  const db = getDatabase();
+app.get('/api/usuarios/:placa', async (req, res) => {
   const placa = req.params.placa.toUpperCase();
-  const results = db.exec('SELECT * FROM usuarios WHERE placa = ?', [placa]);
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('placa', placa)
+    .single();
 
-  if (results.length === 0 || results[0].values.length === 0) {
+  if (error || !data) {
     return res.status(404).json({ error: 'Usuario no encontrado' });
   }
 
-  const row = results[0].values[0];
-  res.json({ id: row[0], placa: row[1], nombre: row[2], fecha_registro: row[3] });
+  res.json(data);
 });
 
 // Registrar mensualidad
-app.post('/api/mensualidades', (req, res) => {
+app.post('/api/mensualidades', async (req, res) => {
   const { placa, valor_pagado, mes, anio } = req.body;
 
   if (!placa || !valor_pagado || !mes || !anio) {
     return res.status(400).json({ error: 'Placa, valor pagado, mes y anio son requeridos' });
   }
 
-  const db = getDatabase();
+  const placaUpper = placa.toUpperCase();
 
-  const userCheck = db.exec('SELECT placa FROM usuarios WHERE placa = ?', [placa.toUpperCase()]);
-  if (userCheck.length === 0 || userCheck[0].values.length === 0) {
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('placa')
+    .eq('placa', placaUpper)
+    .single();
+
+  if (!usuario) {
     return res.status(404).json({ error: 'No existe un usuario con esa placa' });
   }
 
-  const existing = db.exec(
-    'SELECT id FROM mensualidades WHERE placa = ? AND mes = ? AND anio = ?',
-    [placa.toUpperCase(), mes, parseInt(anio)]
-  );
+  const { data: existente } = await supabase
+    .from('mensualidades')
+    .select('id')
+    .eq('placa', placaUpper)
+    .eq('mes', mes)
+    .eq('anio', parseInt(anio))
+    .single();
 
-  if (existing.length > 0 && existing[0].values.length > 0) {
+  if (existente) {
     return res.status(400).json({ error: 'Ya existe un pago registrado para ese mes y anio' });
   }
 
-  try {
-    db.run(
-      'INSERT INTO mensualidades (placa, valor_pagado, mes, anio) VALUES (?, ?, ?, ?)',
-      [placa.toUpperCase(), parseFloat(valor_pagado), mes, parseInt(anio)]
-    );
-    saveDatabase();
-    res.json({ message: 'Mensualidad registrada exitosamente' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const { error } = await supabase
+    .from('mensualidades')
+    .insert({
+      placa: placaUpper,
+      valor_pagado: parseFloat(valor_pagado),
+      mes,
+      anio: parseInt(anio)
+    });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: 'Mensualidad registrada exitosamente' });
 });
 
 // Listar mensualidades
-app.get('/api/mensualidades', (req, res) => {
-  const db = getDatabase();
-  const results = db.exec(`
-    SELECT m.id, m.placa, u.nombre, m.valor_pagado, m.fecha_pago, m.mes, m.anio
-    FROM mensualidades m
-    INNER JOIN usuarios u ON m.placa = u.placa
-    ORDER BY m.anio DESC, 
-    CASE m.mes
-      WHEN 'Enero' THEN 1 WHEN 'Febrero' THEN 2 WHEN 'Marzo' THEN 3
-      WHEN 'Abril' THEN 4 WHEN 'Mayo' THEN 5 WHEN 'Junio' THEN 6
-      WHEN 'Julio' THEN 7 WHEN 'Agosto' THEN 8 WHEN 'Septiembre' THEN 9
-      WHEN 'Octubre' THEN 10 WHEN 'Noviembre' THEN 11 WHEN 'Diciembre' THEN 12
-    END DESC
-  `);
+app.get('/api/mensualidades', async (req, res) => {
+  const { data: mensualidades, error: errorMensualidades } = await supabase
+    .from('mensualidades')
+    .select('*')
+    .order('anio', { ascending: false });
 
-  if (results.length === 0) {
+  if (errorMensualidades) return res.status(500).json({ error: errorMensualidades.message });
+
+  if (!mensualidades || mensualidades.length === 0) {
     return res.json([]);
   }
 
-  const mensualidades = results[0].values.map(row => ({
-    id: row[0],
-    placa: row[1],
-    nombre: row[2],
-    valor_pagado: row[3],
-    fecha_pago: row[4],
-    mes: row[5],
-    anio: row[6]
+  const placas = [...new Set(mensualidades.map(m => m.placa))];
+  const { data: usuarios } = await supabase
+    .from('usuarios')
+    .select('placa, nombre')
+    .in('placa', placas);
+
+  const usuariosMap = {};
+  if (usuarios) {
+    usuarios.forEach(u => { usuariosMap[u.placa] = u.nombre; });
+  }
+
+  const mesOrder = {
+    'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
+    'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8,
+    'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+  };
+
+  mensualidades.sort((a, b) => {
+    if (b.anio !== a.anio) return b.anio - a.anio;
+    return (mesOrder[b.mes] || 0) - (mesOrder[a.mes] || 0);
+  });
+
+  const result = mensualidades.map(m => ({
+    id: m.id,
+    placa: m.placa,
+    nombre: usuariosMap[m.placa] || '',
+    valor_pagado: m.valor_pagado,
+    fecha_pago: m.fecha_pago,
+    mes: m.mes,
+    anio: m.anio
   }));
 
-  res.json(mensualidades);
+  res.json(result);
 });
 
 // Dashboard - estadisticas
-app.get('/api/dashboard', (req, res) => {
-  const db = getDatabase();
+app.get('/api/dashboard', async (req, res) => {
+  const { count: totalUsuarios } = await supabase
+    .from('usuarios')
+    .select('*', { count: 'exact', head: true });
 
-  const totalUsuarios = db.exec('SELECT COUNT(*) FROM usuarios');
-  const totalMensualidades = db.exec('SELECT COUNT(*) FROM mensualidades');
-  const totalRecaudado = db.exec('SELECT COALESCE(SUM(valor_pagado), 0) FROM mensualidades');
-  const promedioMensual = db.exec('SELECT COALESCE(AVG(valor_pagado), 0) FROM mensualidades');
+  const { count: totalMensualidades } = await supabase
+    .from('mensualidades')
+    .select('*', { count: 'exact', head: true });
 
-  const recaudadoPorMes = db.exec(`
-    SELECT mes, anio, SUM(valor_pagado) as total
-    FROM mensualidades
-    GROUP BY mes, anio
-    ORDER BY anio DESC,
-    CASE mes
-      WHEN 'Enero' THEN 1 WHEN 'Febrero' THEN 2 WHEN 'Marzo' THEN 3
-      WHEN 'Abril' THEN 4 WHEN 'Mayo' THEN 5 WHEN 'Junio' THEN 6
-      WHEN 'Julio' THEN 7 WHEN 'Agosto' THEN 8 WHEN 'Septiembre' THEN 9
-      WHEN 'Octubre' THEN 10 WHEN 'Noviembre' THEN 11 WHEN 'Diciembre' THEN 12
-    END DESC
-  `);
+  const { data: sumResult } = await supabase
+    .from('mensualidades')
+    .select('valor_pagado');
 
-  const pagosPorUsuario = db.exec(`
-    SELECT u.placa, u.nombre, COUNT(m.id) as total_pagos, SUM(m.valor_pagado) as total_pagado
-    FROM usuarios u
-    LEFT JOIN mensualidades m ON u.placa = m.placa
-    GROUP BY u.placa
-    ORDER BY total_pagado DESC
-  `);
+  const totalRecaudado = sumResult
+    ? sumResult.reduce((sum, m) => sum + parseFloat(m.valor_pagado), 0)
+    : 0;
 
-  const mesActual = new Date().toLocaleString('es-CO', { month: 'long' });
-  const anioActual = new Date().getFullYear();
-  const pagosMesActual = db.exec(`
-    SELECT COUNT(*), COALESCE(SUM(valor_pagado), 0)
-    FROM mensualidades WHERE mes = ? AND anio = ?
-  `, [mesActual.charAt(0).toUpperCase() + mesActual.slice(1), anioActual]);
+  const promedioMensual = totalMensualidades > 0
+    ? totalRecaudado / totalMensualidades
+    : 0;
 
-  const formatQuery = (result) => {
-    if (result.length === 0) return [];
-    return result[0].values;
+  const { data: todasMensualidades } = await supabase
+    .from('mensualidades')
+    .select('*');
+
+  const mesOrder = {
+    'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
+    'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8,
+    'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
   };
 
+  const recaudadoPorMes = {};
+  if (todasMensualidades) {
+    todasMensualidades.forEach(m => {
+      const key = `${m.mes}-${m.anio}`;
+      if (!recaudadoPorMes[key]) {
+        recaudadoPorMes[key] = { mes: m.mes, anio: m.anio, total: 0 };
+      }
+      recaudadoPorMes[key].total += parseFloat(m.valor_pagado);
+    });
+  }
+
+  const recaudadoArray = Object.values(recaudadoPorMes).sort((a, b) => {
+    if (b.anio !== a.anio) return b.anio - a.anio;
+    return (mesOrder[b.mes] || 0) - (mesOrder[a.mes] || 0);
+  });
+
+  const { data: usuariosData } = await supabase
+    .from('usuarios')
+    .select('placa, nombre');
+
+  const pagosPorUsuario = {};
+  if (usuariosData) {
+    usuariosData.forEach(u => {
+      pagosPorUsuario[u.placa] = {
+        placa: u.placa,
+        nombre: u.nombre,
+        total_pagos: 0,
+        total_pagado: 0
+      };
+    });
+  }
+
+  if (todasMensualidades) {
+    todasMensualidades.forEach(m => {
+      if (pagosPorUsuario[m.placa]) {
+        pagosPorUsuario[m.placa].total_pagos++;
+        pagosPorUsuario[m.placa].total_pagado += parseFloat(m.valor_pagado);
+      }
+    });
+  }
+
+  const pagosArray = Object.values(pagosPorUsuario)
+    .sort((a, b) => b.total_pagado - a.total_pagado);
+
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesActual = meses[new Date().getMonth()];
+  const anioActual = new Date().getFullYear();
+
+  const pagosMesActual = (todasMensualidades || []).filter(
+    m => m.mes === mesActual && m.anio === anioActual
+  );
+
   res.json({
-    total_usuarios: totalUsuarios.length > 0 ? totalUsuarios[0].values[0][0] : 0,
-    total_mensualidades: totalMensualidades.length > 0 ? totalMensualidades[0].values[0][0] : 0,
-    total_recaudado: totalRecaudado.length > 0 ? totalRecaudado[0].values[0][0] : 0,
-    promedio_mensual: promedioMensual.length > 0 ? promedioMensual[0].values[0][0] : 0,
-    pagos_mes_actual: pagosMesActual.length > 0 ? {
-      cantidad: pagosMesActual[0].values[0][0],
-      total: pagosMesActual[0].values[0][1]
-    } : { cantidad: 0, total: 0 },
-    recaudado_por_mes: formatQuery(recaudadoPorMes).map(r => ({
-      mes: r[0], anio: r[1], total: r[2]
-    })),
-    pagos_por_usuario: formatQuery(pagosPorUsuario).map(r => ({
-      placa: r[0], nombre: r[1], total_pagos: r[2], total_pagado: r[3]
-    }))
+    total_usuarios: totalUsuarios || 0,
+    total_mensualidades: totalMensualidades || 0,
+    total_recaudado: totalRecaudado,
+    promedio_mensual: promedioMensual,
+    pagos_mes_actual: {
+      cantidad: pagosMesActual.length,
+      total: pagosMesActual.reduce((sum, m) => sum + parseFloat(m.valor_pagado), 0)
+    },
+    recaudado_por_mes: recaudadoArray,
+    pagos_por_usuario: pagosArray
   });
 });
 
 // Eliminar usuario
-app.delete('/api/usuarios/:placa', (req, res) => {
-  const db = getDatabase();
+app.delete('/api/usuarios/:placa', async (req, res) => {
   const placa = req.params.placa.toUpperCase();
+  const { error } = await supabase
+    .from('usuarios')
+    .delete()
+    .eq('placa', placa);
 
-  db.run('DELETE FROM mensualidades WHERE placa = ?', [placa]);
-  db.run('DELETE FROM usuarios WHERE placa = ?', [placa]);
-  saveDatabase();
-
+  if (error) return res.status(500).json({ error: error.message });
   res.json({ message: 'Usuario eliminado exitosamente' });
 });
 
 // Eliminar mensualidad
-app.delete('/api/mensualidades/:id', (req, res) => {
-  const db = getDatabase();
+app.delete('/api/mensualidades/:id', async (req, res) => {
   const id = parseInt(req.params.id);
+  const { error } = await supabase
+    .from('mensualidades')
+    .delete()
+    .eq('id', id);
 
-  db.run('DELETE FROM mensualidades WHERE id = ?', [id]);
-  saveDatabase();
-
+  if (error) return res.status(500).json({ error: error.message });
   res.json({ message: 'Mensualidad eliminada exitosamente' });
 });
 
-async function startServer() {
-  await initDatabase();
-  console.log('Base de datos inicializada');
-
-  app.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});

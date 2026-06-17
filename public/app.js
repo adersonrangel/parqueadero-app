@@ -29,20 +29,7 @@ async function registrarUsuario() {
   const msgDiv = document.getElementById('mensajeUsuario');
 
   try {
-    const res = await fetch('/api/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ placa, nombre, fecha_registro })
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      msgDiv.className = 'message error';
-      msgDiv.textContent = data.error;
-      return;
-    }
-
+    const data = await apiPost('/usuarios', { placa, nombre, fecha_registro });
     msgDiv.className = 'message success';
     msgDiv.textContent = `Usuario ${data.placa} registrado exitosamente`;
     document.getElementById('formUsuario').reset();
@@ -50,14 +37,13 @@ async function registrarUsuario() {
     cargarUsuarios();
   } catch (err) {
     msgDiv.className = 'message error';
-    msgDiv.textContent = 'Error de conexion con el servidor';
+    msgDiv.textContent = err.message || 'Error de conexion con el servidor';
   }
 }
 
 async function cargarUsuarios() {
   try {
-    const res = await fetch('/api/usuarios');
-    usuarios = await res.json();
+    usuarios = await apiGet('/usuarios');
     renderizarTabla(usuarios);
   } catch (err) {
     console.error('Error cargando usuarios:', err);
@@ -99,7 +85,7 @@ async function eliminarUsuario(placa) {
   }
 
   try {
-    await fetch(`/api/usuarios/${placa}`, { method: 'DELETE' });
+    await apiDelete(`/usuarios/${placa}`);
     cargarUsuarios();
   } catch (err) {
     console.error('Error eliminando usuario:', err);

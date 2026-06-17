@@ -37,8 +37,7 @@ async function cargarDatos() {
 
 async function cargarUsuarios() {
   try {
-    const res = await fetch('/api/usuarios');
-    usuarios = await res.json();
+    usuarios = await apiGet('/usuarios');
     const datalist = document.getElementById('placasDisponibles');
     datalist.innerHTML = usuarios.map(u =>
       `<option value="${u.placa}">${u.nombre}</option>`
@@ -50,8 +49,7 @@ async function cargarUsuarios() {
 
 async function cargarMensualidades() {
   try {
-    const res = await fetch('/api/mensualidades');
-    mensualidades = await res.json();
+    mensualidades = await apiGet('/mensualidades');
     renderizarHistorial(mensualidades);
     actualizarFiltros();
   } catch (err) {
@@ -139,20 +137,7 @@ async function registrarPago() {
   const msgDiv = document.getElementById('mensajePago');
 
   try {
-    const res = await fetch('/api/mensualidades', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ placa, valor_pagado, mes, anio })
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      msgDiv.className = 'message error';
-      msgDiv.textContent = data.error;
-      return;
-    }
-
+    await apiPost('/mensualidades', { placa, valor_pagado, mes, anio });
     msgDiv.className = 'message success';
     msgDiv.textContent = 'Mensualidad registrada exitosamente';
     document.getElementById('formMensualidad').reset();
@@ -160,7 +145,7 @@ async function registrarPago() {
     cargarMensualidades();
   } catch (err) {
     msgDiv.className = 'message error';
-    msgDiv.textContent = 'Error de conexion con el servidor';
+    msgDiv.textContent = err.message || 'Error de conexion con el servidor';
   }
 }
 
@@ -168,7 +153,7 @@ async function eliminarMensualidad(id) {
   if (!confirm('Desea eliminar este registro de mensualidad?')) return;
 
   try {
-    await fetch(`/api/mensualidades/${id}`, { method: 'DELETE' });
+    await apiDelete(`/mensualidades/${id}`);
     cargarMensualidades();
   } catch (err) {
     console.error('Error eliminando mensualidad:', err);

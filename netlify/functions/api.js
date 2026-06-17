@@ -1,9 +1,17 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+let supabase = null;
+
+function getClient() {
+  if (supabase) return supabase;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required');
+  }
+  supabase = createClient(url, key);
+  return supabase;
+}
 
 function parseBody(event) {
   try {
@@ -35,6 +43,8 @@ exports.handler = async (event) => {
   const method = event.httpMethod;
 
   try {
+    const db = getClient();
+
     // POST /api/usuarios
     if (method === 'POST' && path === '/usuarios') {
       const { placa, nombre, fecha_registro } = parseBody(event);
@@ -43,7 +53,7 @@ exports.handler = async (event) => {
       }
       const fecha = fecha_registro || new Date().toISOString().split('T')[0];
 
-      const { error } = await supabase
+      const { error } = await db
         .from('usuarios')
         .insert({ placa: placa.toUpperCase(), nombre, fecha_registro: fecha });
 
@@ -59,7 +69,7 @@ exports.handler = async (event) => {
 
     // GET /api/usuarios
     if (method === 'GET' && path === '/usuarios') {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('usuarios')
         .select('*')
         .order('fecha_registro', { ascending: false });
@@ -72,7 +82,7 @@ exports.handler = async (event) => {
     const usuarioMatch = path.match(/^\/usuarios\/(.+)$/);
     if (method === 'GET' && usuarioMatch) {
       const placa = usuarioMatch[1].toUpperCase();
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('usuarios')
         .select('*')
         .eq('placa', placa)
@@ -87,7 +97,7 @@ exports.handler = async (event) => {
     // DELETE /api/usuarios/:placa
     if (method === 'DELETE' && usuarioMatch) {
       const placa = usuarioMatch[1].toUpperCase();
-      const { error } = await supabase
+      const { error } = await db
         .from('usuarios')
         .delete()
         .eq('placa', placa);
@@ -105,7 +115,7 @@ exports.handler = async (event) => {
 
       const placaUpper = placa.toUpperCase();
 
-      const { data: usuario } = await supabase
+      const { data: usuario } = await db
         .from('usuarios')
         .select('placa')
         .eq('placa', placaUpper)
@@ -115,7 +125,7 @@ exports.handler = async (event) => {
         return jsonResponse(404, { error: 'No existe un usuario con esa placa' });
       }
 
-      const { data: existente } = await supabase
+      const { data: existente } = await db
         .from('mensualidades')
         .select('id')
         .eq('placa', placaUpper)
@@ -127,7 +137,7 @@ exports.handler = async (event) => {
         return jsonResponse(400, { error: 'Ya existe un pago registrado para ese mes y anio' });
       }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('mensualidades')
         .insert({
           placa: placaUpper,
@@ -142,7 +152,7 @@ exports.handler = async (event) => {
 
     // GET /api/mensualidades
     if (method === 'GET' && path === '/mensualidades') {
-      const { data: mensualidades, error: errorMensualidades } = await supabase
+      const { data: mensualidades, error: errorMensualidades } = await db
         .from('mensualidades')
         .select('*')
         .order('anio', { ascending: false });
@@ -154,7 +164,7 @@ exports.handler = async (event) => {
       }
 
       const placas = [...new Set(mensualidades.map(m => m.placa))];
-      const { data: usuarios } = await supabase
+      const { data: usuarios } = await db
         .from('usuarios')
         .select('placa, nombre')
         .in('placa', placas);
@@ -192,7 +202,7 @@ exports.handler = async (event) => {
     const mensualidadMatch = path.match(/^\/mensualidades\/(\d+)$/);
     if (method === 'DELETE' && mensualidadMatch) {
       const id = parseInt(mensualidadMatch[1]);
-      const { error } = await supabase
+      const { error } = await db
         .from('mensualidades')
         .delete()
         .eq('id', id);
@@ -203,15 +213,15 @@ exports.handler = async (event) => {
 
     // GET /api/dashboard
     if (method === 'GET' && path === '/dashboard') {
-      const { count: totalUsuarios } = await supabase
+      const { count: totalUsuarios } = await db
         .from('usuarios')
         .select('*', { count: 'exact', head: true });
 
-      const { count: totalMensualidades } = await supabase
+      const { count: totalMensualidades } = await db
         .from('mensualidades')
         .select('*', { count: 'exact', head: true });
 
-      const { data: sumResult } = await supabase
+      const { data: sumResult } = await db
         .from('mensualidades')
         .select('valor_pagado');
 
@@ -223,7 +233,7 @@ exports.handler = async (event) => {
         ? totalRecaudado / totalMensualidades
         : 0;
 
-      const { data: todasMensualidades } = await supabase
+      const { data: todasMensualidades } = await db
         .from('mensualidades')
         .select('*');
 
@@ -249,7 +259,7 @@ exports.handler = async (event) => {
         return (mesOrder[b.mes] || 0) - (mesOrder[a.mes] || 0);
       });
 
-      const { data: usuariosData } = await supabase
+      const { data: usuariosData } = await db
         .from('usuarios')
         .select('placa, nombre');
 

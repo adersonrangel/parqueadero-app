@@ -4,7 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function cargarDashboard() {
   try {
-    const data = await apiGet('/dashboard');
+    const res = await fetch('/api/dashboard');
+    const data = await res.json();
     renderizarDashboard(data);
   } catch (err) {
     console.error('Error cargando dashboard:', err);

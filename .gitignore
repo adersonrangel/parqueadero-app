@@ -113,6 +113,12 @@ dist
 # Serverless directories
 .serverless/
 
+# Netlify
+.netlify/
+
+# SQLite database
+parqueadero.db
+
 # FuseBox cache
 .fusebox/
 

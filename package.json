@@ -1,15 +1,32 @@
 {
   "name": "parqueadero-app",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "type": "module",
   "description": "Aplicacion para registrar mensualidades de un parqueadero",
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "build": "echo 'Static site - no build needed'"
+    "dev": "concurrently \"tsx watch server/server.ts\" \"vite\"",
+    "build": "tsc -p tsconfig.server.json && vite build",
+    "preview": "vite preview",
+    "start": "NODE_ENV=production node dist/server/server.js",
+    "lint": "eslint src/ server/",
+    "lint:fix": "eslint src/ server/ --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"server/**/*.ts\" \"*.html\" \"*.json\""
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "sql.js": "^1.10.3"
+    "express": "^4.22.2",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.3",
+    "concurrently": "^10.0.3",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "vite": "^8.0.16"
   }
 }

@@ -1,11 +1,15 @@
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
+import initSqlJs, { Database } from "sql.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DB_PATH = path.join(__dirname, 'parqueadero.db');
-let db = null;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-async function initDatabase() {
+const DB_PATH = path.join(__dirname, "..", "parqueadero.db");
+let db: Database | null = null;
+
+export async function initDatabase(): Promise<Database> {
   const SQL = await initSqlJs();
 
   if (fs.existsSync(DB_PATH)) {
@@ -40,14 +44,14 @@ async function initDatabase() {
   return db;
 }
 
-function saveDatabase() {
+export function saveDatabase(): void {
+  if (!db) throw new Error("Database not initialized");
   const data = db.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(DB_PATH, buffer);
 }
 
-function getDatabase() {
+export function getDatabase(): Database {
+  if (!db) throw new Error("Database not initialized");
   return db;
 }
-
-module.exports = { initDatabase, getDatabase, saveDatabase };

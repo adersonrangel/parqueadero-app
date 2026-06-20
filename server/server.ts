@@ -10,7 +10,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "..", "dist", "public")));
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Registrar usuario
 app.post("/api/usuarios", (req, res) => {
@@ -247,7 +247,7 @@ app.delete("/api/mensualidades/:id", (req, res) => {
 
 // Fallback: servir index.html para rutasSPA
 app.get("*", (_req, res) => {
-  res.sendFile(path.join(__dirname, "..", "dist", "public", "index.html"));
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
 async function startServer(): Promise<void> {

@@ -237,7 +237,7 @@ app.delete("/api/usuarios/:placa", (req, res) => {
 // Eliminar mensualidad
 app.delete("/api/mensualidades/:id", (req, res) => {
   const db = getDatabase();
-  const id = parseInt(req.params.id);
+  const id = Number(req.params.id);
 
   db.run("DELETE FROM mensualidades WHERE id = ?", [id]);
   saveDatabase();
@@ -246,7 +246,7 @@ app.delete("/api/mensualidades/:id", (req, res) => {
 });
 
 // Fallback: servir index.html para rutasSPA
-app.get("*", (_req, res) => {
+app.get("/*splat", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 

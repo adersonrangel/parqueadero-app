@@ -13,7 +13,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"server/**/*.ts\" \"*.html\" \"*.json\""
   },
   "dependencies": {
-    "express": "^4.22.2",
+    "express": "^5.2.1",
     "sql.js": "^1.14.1"
   },
   "devDependencies": {
